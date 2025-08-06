@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Explorador de Função de Primeiro Grau</title>
+  <!-- Tailwind CSS para um design moderno -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js para criar o gráfico -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Estilo customizado para os sliders */
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      background: #3b82f6;
+      /* Azul */
+      cursor: pointer;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    }
+
+    input[type=range]::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      background: #3b82f6;
+      cursor: pointer;
+      border-radius: 50%;
+      border: 2px solid white;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4">
+
+  <div class="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-6 md:p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+    <!-- Coluna de Controles e Explicações -->
+    <div class="flex flex-col space-y-6">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold text-blue-600">Explorador de Funções 📈</h1>
+        <p class="text-gray-600 mt-2">Aprenda sobre a função de primeiro grau <strong class="font-mono">f(x) = ax + b</strong> de forma interativa!</p>
+      </div>
+
+      <!-- Controles para 'a' e 'b' -->
+      <div class="space-y-4 bg-gray-50 p-4 rounded-lg border">
+        <div>
+          <label for="a-slider" class="font-semibold">Coeficiente Angular (<span class="font-mono text-red-500">a</span>): <span id="a-value" class="font-bold text-blue-600">1</span></label>
+          <input id="a-slider" type="range" min="-10" max="10" value="1" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+        </div>
+        <div>
+          <label for="b-slider" class="font-semibold">Coeficiente Linear (<span class="font-mono text-green-500">b</span>): <span id="b-value" class="font-bold text-blue-600">2</span></label>
+          <input id="b-slider" type="range" min="-10" max="10" value="2" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+        </div>
+      </div>
+
+      <!-- Caixa de Explicação Dinâmica -->
+      <div id="explanation-box" class="bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 rounded-r-lg transition-all duration-300">
+        <h3 class="font-bold">O que está acontecendo?</h3>
+        <p id="explanation-text" class="mt-1 text-sm">Mova os controles para ver a mágica acontecer!</p>
+      </div>
+
+      <!-- Calculadora de f(x) -->
+      <div class="bg-gray-50 p-4 rounded-lg border">
+        <h3 class="font-semibold mb-2">Calcular f(x) para um ponto</h3>
+        <div class="flex items-center space-x-2">
+          <span class="font-mono">f(</span>
+          <input type="number" id="x-input" value="3" class="w-20 p-2 border border-gray-300 rounded-md text-center">
+          <span class="font-mono">) = ?</span>
+          <button id="calculate-btn" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md transition-colors">
+            Calcular
+          </button>
+        </div>
+        <p id="result-text" class="mt-3 text-center font-bold text-lg text-blue-700 h-6"></p>
+      </div>
+    </div>
+
+    <!-- Coluna do Gráfico -->
+    <div class="bg-gray-50 p-4 rounded-lg border flex items-center justify-center">
+      <canvas id="functionChart"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // --- Elementos do DOM ---
+    const aSlider = document.getElementById('a-slider');
+    const bSlider = document.getElementById('b-slider');
+    const aValueSpan = document.getElementById('a-value');
+    const bValueSpan = document.getElementById('b-value');
+    const explanationText = document.getElementById('explanation-text');
+    const xInput = document.getElementById('x-input');
+    const calculateBtn = document.getElementById('calculate-btn');
+    const resultText = document.getElementById('result-text');
+    const ctx = document.getElementById('functionChart').getContext('2d');
+
+    let chart;
+
+    // --- Lógica Principal ---
+
+    /**
+     * Gera os dados para o gráfico da função f(x) = ax + b.
+     * @param {number} a - Coeficiente angular.
+     * @param {number} b - Coeficiente linear.
+     * @returns {object} - Contém os arrays de labels (x) e data (y).
+     */
+    function generateFunctionData(a, b) {
+      const data = [];
+      const labels = [];
+      // Gera pontos de x de -10 a 10 para plotar a reta
+      for (let x = -10; x <= 10; x++) {
+        labels.push(x);
+        data.push(a * x + b);
+      }
+      return { labels, data };
+    }
+
+    /**
+     * Inicializa o gráfico com Chart.js.
+     */
+    function initializeChart() {
+      const initialA = parseFloat(aSlider.value);
+      const initialB = parseFloat(bSlider.value);
+      const { labels, data } = generateFunctionData(initialA, initialB);
+
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'f(x) = ax + b',
+            data: data,
+            borderColor: '#3b82f6', // Azul
+            borderWidth: 3,
+            tension: 0.1, // Deixa a linha suave
+            pointRadius: 0, // Esconde os pontos nos dados
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          animation: {
+            duration: 0 // Desativa a animação para uma resposta instantânea
+          },
+          scales: {
+            y: {
+              // Começa o eixo y no zero
+              beginAtZero: false,
+              title: {
+                display: true,
+                text: 'Eixo Y'
+              },
+              // Adiciona linhas de grade
+              grid: {
+                color: '#e5e7eb'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Eixo X'
+              },
+              grid: {
+                color: '#e5e7eb'
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false // Esconde a legenda para um visual mais limpo
+            }
+          }
+        }
+      });
+    }
+
+    /**
+     * Atualiza o gráfico e as explicações com base nos novos valores de a e b.
+     */
+    function updateApp() {
+      const a = parseFloat(aSlider.value);
+      const b = parseFloat(bSlider.value);
+
+      // Atualiza os valores exibidos
+      aValueSpan.textContent = a.toFixed(1);
+      bValueSpan.textContent = b.toFixed(1);
+
+      // Atualiza os dados do gráfico
+      const { labels, data } = generateFunctionData(a, b);
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = data;
+      chart.data.datasets[0].label = `f(x) = ${a.toFixed(1)}x + ${b.toFixed(1)}`;
+      chart.update();
+
+      // Atualiza a caixa de explicação
+      updateExplanation(a, b);
+
+      // Limpa o resultado anterior da calculadora
+      resultText.textContent = '';
+    }
+
+    /**
+     * Atualiza o texto na caixa de explicação.
+     * @param {number} a - Coeficiente angular.
+     * @param {number} b - Coeficiente linear.
+     */
+    function updateExplanation(a, b) {
+      let explanation = '';
+
+      // Explicação sobre o coeficiente 'a' (angular)
+      if (a > 0) {
+        explanation += `Como <strong class='font-mono'>a (${a.toFixed(1)})</strong> é positivo, a reta é <strong>crescente</strong>. Quanto maior o valor, mais "em pé" ela fica. `;
+      } else if (a < 0) {
+        explanation += `Como <strong class='font-mono'>a (${a.toFixed(1)})</strong> é negativo, a reta é <strong>decrescente</strong>. Quanto menor o valor, mais inclinada para baixo ela fica. `;
+      } else {
+        explanation += `Como <strong class='font-mono'>a</strong> é zero, a reta é <strong>constante</strong> (horizontal). `;
+      }
+
+      // Explicação sobre o coeficiente 'b' (linear)
+      explanation += `O coeficiente <strong class='font-mono'>b (${b.toFixed(1)})</strong> nos diz onde a reta <strong>corta o eixo Y</strong>. Veja que ela cruza o eixo Y exatamente no ponto (0, ${b.toFixed(1)}).`;
+
+      explanationText.innerHTML = explanation;
+    }
+
+    /**
+     * Calcula e exibe o valor de f(x).
+     */
+    function calculateFx() {
+      const a = parseFloat(aSlider.value);
+      const b = parseFloat(bSlider.value);
+      const x = parseFloat(xInput.value);
+
+      if (isNaN(x)) {
+        resultText.textContent = 'Por favor, insira um número válido para x.';
+        return;
+      }
+
+      const y = a * x + b;
+
+      resultText.textContent = `f(${x}) = ${y.toFixed(2)}`;
+    }
+
+
+    // --- Event Listeners ---
+    aSlider.addEventListener('input', updateApp);
+    bSlider.addEventListener('input', updateApp);
+    calculateBtn.addEventListener('click', calculateFx);
+    // Permite calcular apertando Enter no campo de input
+    xInput.addEventListener('keyup', (event) => {
+      if (event.key === 'Enter') {
+        calculateFx();
+      }
+    });
+
+    // --- Inicialização ---
+    window.onload = () => {
+      initializeChart();
+      updateApp(); // Chama uma vez para definir os valores iniciais
+    };
+  </script>
+</body>
+
+</html>
